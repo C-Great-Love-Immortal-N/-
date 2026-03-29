@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>伪人公寓：搜打撤 | 完全版·心理博弈·微恐微色</title>
+    <style>
+        * { box-sizing: border-box; user-select: none; }
+        body {
+            margin: 0; min-height: 100vh;
+            background: radial-gradient(circle at 20% 30%, #1a0f0c, #0a0503);
+            font-family: 'Courier New', 'Segoe UI', monospace;
+            color: #eeddcc;
+            display: flex; justify-content: center; align-items: center;
+            padding: 20px;
+        }
+        .game-container {
+            width: 1500px; max-width: 95vw;
+            background: rgba(10,5,3,0.75); backdrop-filter: blur(4px);
+            border-radius: 32px; border: 1px solid #aa6655;
+            box-shadow: 0 0 30px rgba(0,0,0,0.8), inset 0 0 10px rgba(255,100,50,0.2);
+            overflow: hidden; display: flex; flex-direction: column;
+        }
+        .status-bar {
+            display: flex; flex-wrap: wrap; gap: 20px; padding: 15px 25px;
+            background: #0f0a07e0; border-bottom: 1px solid #a55;
+            justify-content: space-between; font-weight: bold;
+        }
+        .stat {
+            background: #2a1810; padding: 5px 15px; border-radius: 40px;
+            border-left: 4px solid #e88;
+        }
+        .stat span { color: #ffbb88; font-size: 1.4rem; margin-left: 8px; }
+        .money { border-left-color: gold; }
+        .inventory-summary { font-size: 0.8rem; background: #1e130e; border-radius: 20px; padding: 0 12px; display: flex; align-items: center; gap: 8px; }
+        .main-layout { display: flex; flex: 1; min-height: 580px; }
+        .scene-area { flex: 2; padding: 20px; display: flex; flex-direction: column; border-right: 1px solid #884433; }
+        .scene-image { background: #2b1b12; height: 220px; border-radius: 28px; margin-bottom: 16px; background-size: cover; background-position: center; border: 1px solid #b77; }
+        .scene-desc { background: #1e120cb0; padding: 12px; border-radius: 20px; margin: 10px 0; font-size: 0.9rem; }
+        .interact-grid { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+        .interact-btn { background: #2c1c15; border: 1px solid #b77; border-radius: 40px; padding: 6px 14px; cursor: pointer; transition: 0.1s; font-family: monospace; font-weight: bold; }
+        .interact-btn:hover { background: #9a4a38; color: white; box-shadow: 0 0 5px #f88; }
+        .info-area { flex: 1; background: #0e0906c0; backdrop-filter: blur(4px); display: flex; flex-direction: column; padding: 15px; gap: 18px; }
+        .inventory-panel { background: #1f150f; border-radius: 20px; padding: 12px; max-height: 320px; overflow-y: auto; }
+        .inventory-title { font-size: 1.2rem; border-bottom: 1px solid #a55; margin-bottom: 8px; }
+        .item-list { display: flex; flex-direction: column; gap: 5px; }
+        .item-entry { background: #2c1c14; border-radius: 12px; padding: 5px 8px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+        .item-quality { width: 12px; height: 12px; border-radius: 12px; display: inline-block; margin-right: 6px; }
+        .item-buttons button { background: none; border: none; color: #eda; cursor: pointer; margin-left: 5px; }
+        .log-area { background: #1a100b; border-radius: 16px; padding: 10px; height: 190px; overflow-y: auto; font-size: 0.75rem; }
+        .special-btn { background: #4a2a2a; width: 100%; margin-top: 8px; text-align: center; }
+        .modal { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.9); display: flex; justify-content: center; align-items: center; z-index: 2000; }
+        .modal-content { background: #241912; border: 2px solid #c77; border-radius: 32px; width: 520px; max-width: 90vw; padding: 20px; color: #fde; }
+        .hidden { display: none; }
+        button:active { transform: scale(0.97); }
+        .slider { width: 100%; margin: 10px 0; }
+        ::-webkit-scrollbar { width: 5px; background: #331e15; }
+        ::-webkit-scrollbar-thumb { background: #b66; }
+    </style>
+</head>
+<body>
+<div class="game-container" id="gameRoot">
+    <div class="status-bar">
+        <div class="stat">❤️ 爽值 <span id="pleasure">30</span></div>
+        <div class="stat">🧠 San值 <span id="sanity">65</span></div>
+        <div class="stat money">💰 刀乐 <span id="money">0</span></div>
+        <div class="inventory-summary">📦 背包价值: <span id="totalValue">0</span> $</div>
+        <div class="inventory-summary">🏆 目标: 10万$ & San≥50 撤离</div>
+        <div class="inventory-summary">⚡ 兴奋状态: <span id="excitedStat">无</span></div>
+    </div>
+    <div class="main-layout">
+        <div class="scene-area">
+            <div class="scene-image" id="sceneImage"></div>
+            <div class="scene-desc" id="sceneDesc"></div>
+            <div class="interact-grid" id="actionButtons"></div>
+            <div style="display: flex; gap: 10px; margin-top: 5px;">
+                <button class="interact-btn" id="warehouseBtn">🚌 404公交·安全屋</button>
+                <button class="interact-btn" id="emergencyBtn">🔫 开枪(消耗子弹)</button>
+            </div>
+        </div>
+        <div class="info-area">
+            <div class="inventory-panel">
+                <div class="inventory-title">🎒 背包 (点击使用/交易)</div>
+                <div id="inventoryList" class="item-list">空</div>
+                <div style="font-size:0.7rem;">✨ 物品可悬停看简介 | 特殊物品有次数</div>
+            </div>
+            <div class="log-area" id="logPanel"></div>
+            <button id="darkwebBtn" class="interact-btn special-btn">🌐 暗网·交易行&物资购买</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ========== 完全版：伪人公寓·心理博弈 ==========
+    // 品质映射
+    const qualityRank = { "白色":1, "绿色":2, "蓝色":4, "紫色":8, "金色":16, "红色":32, "黑金色":64, "赤金色":128 };
+    const qualityColor = { "白色":"#ccc","绿色":"#6c6","蓝色":"#6cf","紫色":"#c6f","金色":"#fc6","红色":"#f66","黑金色":"#d9c","赤金色":"#f90" };
+    
+    // ---------- 物品库（含故事简介）----------
+    const itemDatabase = {
+        "旧打火机": { name:"旧打火机", quality:"白色", baseValue:80, type:"日用", desc:"一只刻着“勿忘我”的zippo，点燃过无数支烟，也点燃过秘密。" },
+        "性感内衣": { name:"性感内衣", quality:"蓝色", baseValue:850, type:"情色", desc:"蕾丝镂空，带着前主人的香水味，穿上它你会心跳加速。", pleasureBonus:12, canUse:true, useEffect:"pleasure", useValue:12 },
+        "安眠药": { name:"安眠药", quality:"绿色", baseValue:200, type:"消耗", desc:"药瓶上写着“好梦”，但有人吃了再也没醒来。", sanityBonus:5, canUse:true, useEffect:"sanity", useValue:5 },
+        "邻居日记": { name:"邻居日记", quality:"紫色", baseValue:1200, type:"资料", desc:"皮革封面，记载着她对伪人仪式的痴迷，字迹癫狂。" },
+        "金项链": { name:"金项链", quality:"金色", baseValue:5500, type:"奢侈", desc:"古法金链，吊坠里藏着一根发丝——谁的？" },
+        "红宝石戒指": { name:"红宝石戒指", quality:"红色", baseValue:12500, type:"奢侈", desc:"鸽血红宝石，戒圈内刻着“永恒”，却染过血。" },
+        "黑金卡": { name:"黑金卡", quality:"黑金色", baseValue:28000, type:"资料", desc:"无限额黑卡，背面用荧光笔写着“302禁忌”" },
+        "赤金怀表": { name:"赤金怀表", quality:"赤金色", baseValue:62000, type:"奢侈", desc:"表盘停在了3:02，打开后盖有张褪色照片。" },
+        "手枪子弹": { name:"手枪子弹", quality:"白色", baseValue:50, type:"弹药", desc:"黄铜弹壳，底火上刻着诡异符号。" },
+        "后门房卡": { name:"后门房卡", quality:"蓝色", baseValue:900, type:"钥匙", desc:"通用门卡，能打开邻居家后门。", story:"从油画后面找到，塑料卡有温度。" },
+        "催眠CD": { name:"催眠CD", quality:"紫色", baseValue:2100, type:"情色", desc:"封面女郎眼神迷离，播放后会陷入半梦半醒。", pleasureBonus:18, sanityCost:-8, canUse:true, useEffect:"pleasure", useValue:18, sideSanity:-8 },
+        "古董烟斗": { name:"古董烟斗", quality:"绿色", baseValue:380, type:"日用", desc:"海泡石材质，烟嘴里有暗红色渍迹。" },
+        "手枪": { name:"手枪", quality:"蓝色", baseValue:500, type:"武器", desc:".45口径，握把刻着“最后一次机会”。", isGun:true },
+        "活动笔记": { name:"活动笔记", quality:"紫色", baseValue:4000, type:"线索", desc:"记载伪人祭祀的日期和密码暗示。" },
+        "穷举器": { name:"穷举器", quality:"蓝色", baseValue:0, type:"科技", desc:"微型超级计算机，破解密码专用。" },
+        "符箓": { name:"符箓", quality:"金色", baseValue:23498, type:"圣物", desc:"黄纸朱砂，道家真传，可驱邪三次。", maxUses:3, currentUses:3, useEffect:"special", special:"exorcism" },
+        "黑金白铁十字": { name:"黑金白铁十字", quality:"黑金色", baseValue:302345786, type:"圣物", desc:"十字架上有血锈，握住它会听到诵经声。", maxUses:2, currentUses:2, useEffect:"special", special:"divine" },
+        "母体培养基": { name:"母体培养基", quality:"赤金色", baseValue:123456090, type:"神器", desc:"玻璃器皿里蠕动着粉色组织，伪人母体的摇篮。", maxUses:1, currentUses:1, useEffect:"special", special:"mother" },
+        "陨石碎片": { name:"陨石碎片", quality:"赤金色", baseValue:189000000, type:"宇宙", desc:"漆黑如墨，表面有流动的星云纹路。", maxUses:1, currentUses:1, useEffect:"special", special:"meteor" },
+        "远古化石": { name:"远古化石", quality:"赤金色", baseValue:299038746, type:"古物", desc:"三叶虫化石，触摸时脑海闪过史前记忆。", maxUses:1, currentUses:1, useEffect:"special", special:"fossil" },
+        "神像": { name:"神像", quality:"赤金色", baseValue:234598768, type:"神祇", desc:"千手木雕，每只手都握着不同法器。", maxUses:3, currentUses:3, useEffect:"special", special:"idol" },
+        "302房卡": { name:"302房卡", quality:"紫色", baseValue:3500, type:"钥匙", desc:"302房间的门卡，上面用口红印着唇印。" },
+        "阳台钥匙": { name:"阳台钥匙", quality:"蓝色", baseValue:600, type:"钥匙", desc:"通往顶层公共阳台的黄铜钥匙，锈迹斑斑。" },
+        "二楼走廊卡": { name:"二楼走廊卡", quality:"绿色", baseValue:400, type:"钥匙", desc:"可以打开二楼消防通道，那里藏着秘密。" },
+        "兴奋剂": { name:"兴奋剂", quality:"紫色", baseValue:2800, type:"消耗", desc:"军用兴奋剂，使用后进入兴奋状态（开枪必爆额外奖励）。", canUse:true, useEffect:"excited", useValue:1 },
+        "魅惑香水": { name:"魅惑香水", quality:"金色", baseValue:6800, type:"情色", desc:"麝香调，喷洒后调情收益翻倍。", canUse:true, useEffect:"flirtBuff", useValue:1, story:"邻居同款香味" }
+    };
+    
+    // 全局状态
+    let state = {
+        sanity: 65, pleasure: 30, money: 0, inventory: [], currentScene: "livingroom",
+        hasGun: false, bullet: 2, neighborTrust: 0, secretClue: false, eventTriggered: false,
+        gameWin: false, ritualFlag: false, safeCode: null, clueDigits: [null,null,null,null,null,null],
+        dogSearchCount: 0, busSignCount: 0, hackUnlocked: false, hasActivityNote: false,
+        hasUsedSafe: false, ritualItemCollected: false, excited: false, flirtBuff: false,
+        cgTriggered: false
+    };
+    
+    function initSafeCode() { state.safeCode = Math.floor(100000 + Math.random() * 900000).toString(); }
+    
+    function addLog(msg, type="normal") {
+        const logDiv = document.getElementById("logPanel");
+        const entry = document.createElement("div");
+        entry.className = "log-entry";
+        entry.innerHTML = `> ${msg}`;
+        if(type==="combat") entry.style.color="#faa";
+        if(type==="flirt") entry.style.color="#fbc";
+        if(type==="loot") entry.style.color="#cf9";
+        logDiv.prepend(entry);
+        if(logDiv.children.length > 18) logDiv.removeChild(logDiv.lastChild);
+    }
+    
+    function updateUI() {
+        document.getElementById("sanity").innerText = Math.floor(state.sanity);
+        document.getElementById("pleasure").innerText = Math.floor(state.pleasure);
+        document.getElementById("money").innerText = Math.floor(state.money);
+        let totalVal = state.inventory.reduce((sum, i)=> sum + (i.value || 0), 0);
+        document.getElementById("totalValue").innerText = totalVal;
+        document.getElementById("excitedStat").innerHTML = state.excited ? "🔥 亢奋(击杀增益)" : "😐 平静";
+        renderInventory();
+        if(!state.gameWin && state.sanity >= 50 && totalVal >= 100000) {
+            state.gameWin = true;
+            addLog("✨✨ 你集齐10万刀乐，理智尚存，成功逃离伪人公寓！胜利 ✨✨", "combat");
+            setTimeout(()=> alert("🎉 胜利！你带着财富与理智离开了公寓 🎉\n刷新页面可重新游戏"), 500);
+        }
+        if(state.sanity <= 0) { addLog("💀 理智归零，沦为伪人傀儡... 游戏结束", "combat"); setTimeout(()=> alert("Game Over - 伪人同化"), 10); disableButtons(); }
+        if(state.pleasure <= 0) { addLog("😞 爽值归零，欲望枯竭，成为行尸走肉... 游戏结束", "combat"); setTimeout(()=> alert("Game Over - 欲望枯竭"), 10); disableButtons(); }
+    }
+    
+    function disableButtons() { document.querySelectorAll(".interact-btn").forEach(btn => btn.disabled = true); }
+    
+    function addItem(itemKey, customValue=null) {
+        const base = itemDatabase[itemKey];
+        if(!base) return false;
+        let value = customValue !== null ? customValue : base.baseValue * (qualityRank[base.quality] || 1);
+        let newItem = { 
+            id: Date.now()+Math.random(), name: base.name, quality: base.quality, 
+            value: value, type: base.type, desc: base.desc, 
+            pleasureBonus: base.pleasureBonus || 0, sanityCost: base.sanityCost || 0,
+            canUse: base.canUse || false, useEffect: base.useEffect, useValue: base.useValue,
+            maxUses: base.maxUses, currentUses: base.currentUses, special: base.special,
+            sideSanity: base.sideSanity || 0, isGun: base.isGun || false, story: base.story || base.desc
+        };
+        if(newItem.name === "活动笔记") state.hasActivityNote = true;
+        if(newItem.name === "穷举器") state.hackUnlocked = true;
+        state.inventory.push(newItem);
+        addLog(`获得物品: ${newItem.name} (${newItem.quality}) 价值 ${newItem.value}$ — ${newItem.story.substring(0,40)}`, "loot");
+        updateUI();
+        return true;
+    }
+    
+    function removeItem(idx) {
+        if(idx>=0 && idx<state.inventory.length) {
+            let removed = state.inventory.splice(idx,1)[0];
+            addLog(`移除: ${removed.name}`);
+            updateUI();
+        }
+    }
+    
+    // 使用特殊物品
+    function useSpecialItem(item, idx) {
+        if(item.special === "exorcism") {
+            if(item.currentUses > 0) { item.currentUses--; state.sanity = Math.min(100, state.sanity + 15); addLog(`符箓驱邪，San+15，剩余${item.currentUses}次`, "combat"); if(item.currentUses===0) removeItem(idx); updateUI(); }
+        } else if(item.special === "divine") {
+            if(item.currentUses > 0) { item.currentUses--; state.sanity = Math.min(100, state.sanity + 40); state.pleasure = Math.min(100, state.pleasure + 30); addLog(`十字架闪耀，San+40，爽+30！剩余${item.currentUses}次`, "flirt"); if(item.currentUses===0) removeItem(idx); updateUI(); }
+        } else if(item.special === "mother") {
+            if(item.currentUses > 0) { item.currentUses--; state.sanity = Math.min(100, state.sanity + 50); state.pleasure = Math.min(100, state.pleasure + 30); state.money = Math.max(0, state.money - 5000); addLog(`母体培养基能量涌动，San+50爽+30，但金钱-5000`, "combat"); if(item.currentUses===0) removeItem(idx); updateUI(); }
+        } else if(item.special === "meteor") {
+            let gain = Math.floor(Math.random() * 50000) + 10000; state.money += gain; addLog(`陨石碎片辐射，获得 ${gain}$ 稀有金属!`, "loot"); removeItem(idx); updateUI();
+        } else if(item.special === "fossil") {
+            state.inventory.forEach(i => { i.value = Math.floor(i.value * 1.2); }); addLog(`远古化石力量扩散，所有物品价值提升20%！`, "loot"); removeItem(idx); updateUI();
+        } else if(item.special === "idol") {
+            if(item.currentUses > 0) { item.currentUses--; let r = Math.random(); if(r<0.33) { state.sanity += 20; state.pleasure += 10; addLog(`神像赐福: san+20 爽+10`); } else if(r<0.66) { state.money += 50000; addLog(`神像赐福: 获得50000刀乐`); } else { addItem("赤金怀表", 58000); addLog(`神像赐福: 凭空出现赤金怀表!`); } if(item.currentUses===0) removeItem(idx); updateUI(); }
+        } else if(item.useEffect === "excited") {
+            state.excited = true; addLog(`注射兴奋剂！进入亢奋状态，开枪必爆极品奖励！`, "combat"); removeItem(idx); updateUI();
+        } else if(item.useEffect === "flirtBuff") {
+            state.flirtBuff = true; addLog(`喷洒魅惑香水，调情收益翻倍！`, "flirt"); removeItem(idx); updateUI();
+        }
+        else { addLog("无法使用该物品"); }
+    }
+    
+    function renderInventory() {
+        const container = document.getElementById("inventoryList");
+        if(state.inventory.length === 0) { container.innerHTML = "<div style='opacity:0.6'>空空如也...</div>"; return; }
+        container.innerHTML = "";
+        state.inventory.forEach((item, idx) => {
+            const div = document.createElement("div");
+            div.className = "item-entry";
+            let usesText = (item.maxUses && item.currentUses !== undefined) ? ` (${item.currentUses}/${item.maxUses})` : "";
+            div.innerHTML = `
+                <div title="${item.story || item.desc}" style="cursor:help;"><span class="item-quality" style="background:${qualityColor[item.quality]}"></span> ${item.name}${usesText} [${item.quality}] $${item.value}</div>
+                <div class="item-buttons">
+                    <button data-idx="${idx}" class="useItemBtn">🔧</button>
+                    <button data-idx="${idx}" class="dropItemBtn">🗑️</button>
+                </div>
+            `;
+            container.appendChild(div);
+        });
+        document.querySelectorAll(".useItemBtn").forEach(btn => {
+            btn.addEventListener("click", (e) => {
+                let idx = parseInt(btn.dataset.idx);
+                let it = state.inventory[idx];
+                if(it.canUse === true || it.special) {
+                    if(it.special) useSpecialItem(it, idx);
+                    else if(it.type === "情色") {
+                        let gain = it.pleasureBonus || 8;
+                        if(state.flirtBuff) gain = Math.floor(gain*2);
+                        state.pleasure = Math.min(100, state.pleasure+gain);
+                        addLog(`使用${it.name}，爽值+${gain} ❤️`, "flirt");
+                        if(it.sanityCost) { state.sanity = Math.max(0, state.sanity+it.sanityCost); addLog(`理智变化 ${it.sanityCost}`);}
+                        removeItem(idx);
+                    } else if(it.name.includes("安眠药")) {
+                        state.sanity = Math.min(100, state.sanity+5); addLog(`服用安眠药，San+5`, "normal"); removeItem(idx);
+                    } else { addLog(`暂时无法使用 ${it.name}`); }
+                } else if(it.type === "弹药" && state.hasGun) { state.bullet += 2; addLog(`装填手枪，子弹+2`); removeItem(idx); updateUI();}
+                else addLog(`物品无法使用或没有对应条件`);
+                updateUI();
+            });
+        });
+        document.querySelectorAll(".dropItemBtn").forEach(btn => {
+            btn.addEventListener("click", (e) => { let idx = parseInt(btn.dataset.idx); removeItem(idx); });
+        });
+    }
+    
+    // ----- 场景扩展：新增二楼走廊、302房间、阳台 -----
+    const scenes = {
+        livingroom: { name:"客厅", desc:"破旧沙发，电视雪花屏。墙上有幅歪斜油画。茶几散落烟头。", image:"https://placehold.co/600x200/3a2a22/c99?text=客厅+诡异油画", actions:["搜刮茶几","检查油画","去厨房","去卧室","去后院","去邻居家","上二楼"] },
+        kitchen: { name:"厨房", desc:"水槽有暗红色污渍，冰箱嗡嗡响。", image:"https://placehold.co/600x200/3a2a22/c99?text=厨房", actions:["搜冰箱","拿菜刀","去客厅","去后院"] },
+        bedroom: { name:"卧室", desc:"凌乱双人床，衣柜门半开。", image:"https://placehold.co/600x200/3a2a22/c99?text=卧室", actions:["翻衣柜","检查床头柜","搜床底","去客厅"] },
+        backyard: { name:"后院", desc:"荒草丛生，生锈秋千。狗屋在角落。", image:"https://placehold.co/600x200/3a2a22/c99?text=后院", actions:["搜狗屋","荡秋千(微色情)","翻墙去街道","回客厅"] },
+        street: { name:"街道", desc:"昏黄路灯，404公交站牌。", image:"https://placehold.co/600x200/3a2a22/c99?text=街道", actions:["去邻居家","观察站牌","回后院"] },
+        neighbor: { name:"邻居家", desc:"粉色灯光，女邻居丝绸睡袍。", image:"https://placehold.co/600x200/4a2a2a/dbb?text=邻居", actions:["对话调情","搜查房间","使用房卡进密室","回街道"] },
+        floor2: { name:"二楼走廊", desc:"昏暗走廊，墙纸脱落。三扇门：201、202、尽头是302。", image:"https://placehold.co/600x200/3a2a22/c99?text=二楼走廊", actions:["查看201","查看202","去302房间","去阳台","回客厅"] },
+        room302: { name:"302房间", desc:"粉色灯光，大圆床，暧昧香氛。墙上有面巨大镜子。", image:"https://placehold.co/600x200/4a2a2a/dbb?text=302+私密", actions:["享受服务(花钱)","搜查房间","使用302房卡","回二楼"] },
+        balcony: { name:"顶层阳台", desc:"夜空无星，护栏边有人影晃动。远处传来低语。", image:"https://placehold.co/600x200/3a2a22/c99?text=阳台", actions:["观看夜景","窥视楼下(低概率露骨)","回二楼"] }
+    };
+    
+    let currentSceneKey = "livingroom";
+    function changeScene(sceneKey) {
+        if(!scenes[sceneKey]) return;
+        currentSceneKey = sceneKey;
+        const scene = scenes[sceneKey];
+        document.getElementById("sceneDesc").innerHTML = scene.desc;
+        document.getElementById("sceneImage").style.backgroundImage = `url('${scene.image}')`;
+        const actionDiv = document.getElementById("actionButtons");
+        actionDiv.innerHTML = "";
+        scene.actions.forEach(action => {
+            let btn = document.createElement("button");
+            btn.className = "interact-btn";
+            btn.innerText = action;
+            btn.onclick = () => handleAction(action, sceneKey);
+            actionDiv.appendChild(btn);
+        });
+    }
+    
+    // 动作处理（整合新场景）
+    function handleAction(action, scene) {
+        if(state.sanity<=0 || state.pleasure<=0) return;
+        // 原有场景逻辑保留，新增二楼、302、阳台
+        if(scene === "livingroom") {
+            if(action === "搜刮茶几") { addItem("旧打火机"); addItem("安眠药"); state.sanity+=2; addLog("茶几找到打火机和安眠药");}
+            if(action === "检查油画") { if(Math.random()<0.2) { addItem("后门房卡"); addLog("油画后藏着一张房卡！"); } else { state.sanity-=3; addLog("油画后面只有霉斑，san-3");} }
+            if(action === "上二楼") changeScene("floor2");
+            if(action === "去厨房") changeScene("kitchen");
+            if(action === "去卧室") changeScene("bedroom");
+            if(action === "去后院") changeScene("backyard");
+            if(action === "去邻居家") changeScene("neighbor");
+        }
+        else if(scene === "kitchen") {
+            if(action === "搜冰箱") { addItem("安眠药"); addLog("找到安眠药");}
+            if(action === "拿菜刀") { addItem("手枪子弹",120); addLog("菜刀架下压着子弹"); }
+            if(action === "去客厅") changeScene("livingroom");
+            if(action === "去后院") changeScene("backyard");
+        }
+        else if(scene === "bedroom") {
+            if(action === "翻衣柜") { if(Math.random()<0.4) { addItem("性感内衣"); state.pleasure+=6; } else { state.sanity-=4; addLog("血衣，san-4");} }
+            if(action === "检查床头柜") { addItem("金项链", 4500); addLog("金项链！");}
+            if(action === "搜床底") { addItem("邻居日记"); addItem("活动笔记"); addLog("获得邻居日记和活动笔记！"); state.hasActivityNote=true; }
+            if(action === "去客厅") changeScene("livingroom");
+        }
+        else if(scene === "backyard") {
+            if(action === "搜狗屋") { 
+                state.dogSearchCount++;
+                if(!state.hasGun) { addItem("手枪"); state.hasGun=true; state.bullet=3; addLog("找到手枪！");}
+                else addLog("狗屋翻出旧照片");
+                if(state.dogSearchCount >= 3 && state.dogSearchCount <= 8) { 
+                    let idx = (state.dogSearchCount-3) % 6; 
+                    if(state.safeCode[idx]) { 
+                        addLog(`摩斯密码线索: 第${idx+1}位密码是 ${state.safeCode[idx]}`); 
+                        state.clueDigits[idx]=state.safeCode[idx]; 
+                    } 
+                }
+            }
+            if(action === "荡秋千(微色情)") { let gain = Math.floor(Math.random()*8)+4; state.pleasure = Math.min(100, state.pleasure+gain); let loss=Math.floor(Math.random()*5); state.sanity-=loss; addLog(`秋千晃荡 爽+${gain} san-${loss}`,"flirt");}
+            if(action === "翻墙去街道") changeScene("street");
+            if(action === "回客厅") changeScene("livingroom");
+        }
+        else if(scene === "street") {
+            if(action === "去邻居家") changeScene("neighbor");
+            if(action === "观察站牌") { 
+                state.busSignCount++;
+                addLog("站牌涂鸦有摩斯符号");
+                if(state.busSignCount >= 3 && state.busSignCount <= 8) { 
+                    let idx = (state.busSignCount-3) % 6; 
+                    if(state.safeCode[idx]) { 
+                        addLog(`站牌摩斯提示: 密码第${idx+1}位 = ${state.safeCode[idx]}`); 
+                        state.clueDigits[idx]=state.safeCode[idx]; 
+                    } 
+                }
+            }
+            if(action === "回后院") changeScene("backyard");
+        }
+        else if(scene === "neighbor") {
+            if(action === "对话调情") {
+                let gain=Math.floor(Math.random()*12)+6;
+                if(state.flirtBuff) gain = Math.floor(gain*1.8);
+                let oldTrust = state.neighborTrust;
+                state.pleasure=Math.min(100, state.pleasure+gain);
+                state.sanity -= 3;
+                state.neighborTrust += Math.floor(Math.random()*10)+5;
+                addLog(`邻居耳语撩拨，爽+${gain} san-3 信任+${state.neighborTrust-oldTrust}`, "flirt");
+                if(state.neighborTrust > 40 && !state.eventTriggered) { addItem("红宝石戒指",11000); state.eventTriggered=true; }
+                // 高信任爆物资
+                if(state.neighborTrust > 60 && Math.random()<0.3) { addItem("魅惑香水"); addLog("邻居感激你的陪伴，送你魅惑香水！"); }
+                // 特殊CG
+                if(state.neighborTrust > 75 && !state.cgTriggered && Math.random()<0.4) {
+                    addLog("💋 【特殊CG】邻居解开睡袍，露出玲珑曲线，你们共度春宵……爽值+30，San-10，获得金项链", "flirt");
+                    state.pleasure = Math.min(100, state.pleasure+30);
+                    state.sanity -= 10;
+                    addItem("金项链",6000);
+                    state.cgTriggered=true;
+                }
+            }
+            if(action === "搜查房间") { if(Math.random()<0.3) addItem("催眠CD"); else if(Math.random()<0.5) addItem("古董烟斗"); else { state.sanity-=6; addLog("触发陷阱san-6");} }
+            if(action === "使用房卡进密室") { let hasCard = state.inventory.some(i=>i.name==="后门房卡"); if(hasCard && state.hasActivityNote) { addLog("密室保险箱！需要6位密码"); triggerSafeModal(); } else addLog("需要后门房卡和活动笔记。"); }
+            if(action === "回街道") changeScene("street");
+        }
+        // 新场景：二楼
+        else if(scene === "floor2") {
+            if(action === "查看201") { addLog("201房门紧锁，里面传来电视声。"); if(Math.random()<0.2) addItem("二楼走廊卡"); }
+            if(action === "查看202") { addLog("202门虚掩，里面空无一人，墙上有张褪色海报。"); if(Math.random()<0.15) addItem("阳台钥匙"); }
+            if(action === "去302房间") changeScene("room302");
+            if(action === "去阳台") changeScene("balcony");
+            if(action === "回客厅") changeScene("livingroom");
+        }
+        else if(scene === "room302") {
+            if(action === "享受服务(花钱)") {
+                if(state.money >= 800) { state.money -= 800; let gain = Math.floor(Math.random()*25)+20; state.pleasure = Math.min(100, state.pleasure+gain); addLog(`你支付800$享受私密服务，爽值+${gain} ❤️`, "flirt"); }
+                else addLog("金钱不足800，无法享受。");
+            }
+            if(action === "搜查房间") {
+                if(Math.random()<0.4) addItem("302房卡");
+                else if(Math.random()<0.5) addItem("魅惑香水");
+                else addItem("性感内衣");
+            }
+            if(action === "使用302房卡") {
+                let hasCard = state.inventory.some(i=>i.name==="302房卡");
+                if(hasCard) { addLog("你刷卡进入密室，里面藏着一箱财宝！获得黑金卡+赤金怀表"); addItem("黑金卡",25000); addItem("赤金怀表",58000); }
+                else addLog("没有302房卡，无法进入暗室。");
+            }
+            if(action === "回二楼") changeScene("floor2");
+        }
+        else if(scene === "balcony") {
+            if(action === "观看夜景") { addLog("夜风微凉，远处霓虹闪烁，爽值+4"); state.pleasure = Math.min(100, state.pleasure+4); }
+            if(action === "窥视楼下(低概率露骨)") {
+                if(Math.random()<0.2) {
+                    addLog("🌙 你窥见对面阳台一对情侣缠绵，血脉偾张！爽值+18，并获得兴奋状态！", "flirt");
+                    state.pleasure = Math.min(100, state.pleasure+18);
+                    state.excited = true;
+                } else { addLog("楼下只有流浪猫经过。"); }
+            }
+            if(action === "回二楼") changeScene("floor2");
+        }
+        
+        // 随机突发事件（包含仪式事件，概率合并）
+        if(Math.random()<0.2) triggerRandomEventExtended();
+        if(Math.random()<0.08 && !state.ritualItemCollected) triggerRitualEvent(); // 仪式事件单独调用
+        updateUI();
+    }
+    
+    // 撞见仪式事件（获得神像/符箓/黑金白铁十字）
+    function triggerRitualEvent() {
+        addLog("⚡ 深夜撞见伪人祭祀仪式！你冒着生命危险抢夺圣物 ⚡", "combat");
+        let gamble = Math.random();
+        if(gamble<0.5) { 
+            addItem("神像", 234598768); 
+            addItem("符箓", 23498); 
+            addLog("夺走神像和符箓，但san-15"); 
+            state.sanity -= 15; 
+        } else { 
+            addItem("黑金白铁十字", 302345786); 
+            addLog("获得黑金白铁十字，但被诅咒金钱-20000"); 
+            state.money = Math.max(0, state.money-20000); 
+        }
+        state.ritualItemCollected = true;
+        updateUI();
+    }
+    
+    // 扩展随机事件池
+    function triggerRandomEventExtended() {
+        let events = [
+            { text:"伪人伪装成你已故亲人，求你拥抱 (拥抱：爽+5 san-12 / 开枪：需手枪)", optionA:"拥抱", optionB:"开枪", effectA:()=>{ state.pleasure+=5; state.sanity-=12; }, effectB:()=>{ if(state.hasGun&&state.bullet>0) { state.bullet--; addItem("金项链",6000); } else state.sanity-=20; } },
+            { text:"邻居深夜敲门，穿着透明睡衣，邀请你喝酒 (喝酒：爽+10 san-5 / 拒绝：无事)", optionA:"喝酒", optionB:"拒绝", effectA:()=>{ state.pleasure+=10; state.sanity-=5; }, effectB:()=>{} },
+            { text:"暗网发来紧急博弈: 猜硬币，赢获得赤金色物品，输损失10000刀乐", optionA:"猜正面", optionB:"猜反面", effectA:()=>{ let win=(Math.random()<0.5); if(win) addItem("赤金怀表",55000); else state.money=Math.max(0,state.money-10000); }, effectB:()=>{ let win=(Math.random()<0.5); if(win) addItem("赤金怀表",55000); else state.money=Math.max(0,state.money-10000); } },
+            { text:"街头小贩兜售神秘药丸 (购买花费2000$，爽+10 或 san-15)", optionA:"购买", optionB:"无视", effectA:()=>{ if(state.money>=2000){ state.money-=2000; if(Math.random()<0.6){ state.pleasure+=10; addLog("药丸让你飘飘欲仙，爽+10"); } else { state.sanity-=15; addLog("药丸是毒药，san-15"); } } else addLog("钱不够"); }, effectB:()=>{} },
+            { text:"你在走廊捡到一张纸条，上面写着一串数字", optionA:"研究", optionB:"丢掉", effectA:()=>{ let digit=Math.floor(Math.random()*10); addLog(`纸条数字:${digit}，也许与保险箱有关`); for(let i=0;i<6;i++) if(state.clueDigits[i]===null) { state.clueDigits[i]=digit; break; } }, effectB:()=>{} },
+            { text:"阳台闪过一道光，你看到UFO？", optionA:"许愿", optionB:"无视", effectA:()=>{ let r=Math.random(); if(r<0.3) addItem("陨石碎片"); else if(r<0.6) state.money+=30000; else state.sanity-=10; addLog("许愿后获得神秘力量"); }, effectB:()=>{} }
+        ];
+        let ev = events[Math.floor(Math.random()*events.length)];
+        addLog(`⚠️ 突发事件: ${ev.text}`, "combat");
+        let modal = document.createElement("div");
+        modal.className = "modal";
+        modal.innerHTML = `<div class="modal-content"><h3>⚠️ 心理博弈 ⚠️</h3><p>${ev.text}</p><div style="display:flex;gap:15px;margin-top:20px;"><button id="eventOptA">${ev.optionA}</button><button id="eventOptB">${ev.optionB}</button></div></div>`;
+        document.body.appendChild(modal);
+        const resolve = (choice) => {
+            if(choice===ev.optionA) ev.effectA();
+            else ev.effectB();
+            modal.remove();
+            updateUI();
+        };
+        document.getElementById("eventOptA").onclick = ()=>resolve(ev.optionA);
+        document.getElementById("eventOptB").onclick = ()=>resolve(ev.optionB);
+    }
+    
+    // 保险箱模态（6位）
+    function triggerSafeModal() {
+        let modal = document.createElement("div");
+        modal.className = "modal";
+        modal.innerHTML = `<div class="modal-content"><h3>🔒 古老保险箱(6位)</h3><p>线索已收集: ${state.clueDigits.filter(d=>d!=null).join(',') || '无'}</p><input id="codeInput" placeholder="6位密码" /><br/><button id="crackBtn">尝试破解</button><button id="buyBruteBtn">💸 购买穷举器(10000$)</button><button id="closeModal">关闭</button></div>`;
+        document.body.appendChild(modal);
+        document.getElementById("crackBtn").onclick = () => {
+            let inp = document.getElementById("codeInput").value;
+            if(inp === state.safeCode) {
+                addLog("保险箱开启！获得母体培养基 + 陨石碎片 + 远古化石！");
+                addItem("母体培养基", 123456090);
+                addItem("陨石碎片", 189000000);
+                addItem("远古化石", 299038746);
+                modal.remove();
+                state.hasUsedSafe=true;
+            } else addLog("密码错误，san-8", "combat");
+            state.sanity-=8;
+            updateUI();
+        };
+        document.getElementById("buyBruteBtn").onclick = () => {
+            if(state.money >= 10000) {
+                state.money -= 10000;
+                addItem("穷举器");
+                addLog(`穷举器显示密码为: ${state.safeCode}`);
+                document.getElementById("codeInput").value = state.safeCode;
+                updateUI();
+            } else addLog("金钱不足10000");
+        };
+        document.getElementById("closeModal").onclick = () => modal.remove();
+    }
+    
+    // 开枪增强（兴奋状态额外奖励）
+    function handleShoot() {
+        if(!state.hasGun) { addLog("没有手枪"); return; }
+        if(state.bullet<=0) { addLog("没有子弹"); return; }
+        state.bullet--;
+        let reward = "金项链";
+        if(state.excited) { 
+            reward = ["红宝石戒指","赤金怀表","黑金卡"][Math.floor(Math.random()*3)]; 
+            addLog("💥 亢奋状态！一枪爆头，获得极品！", "combat"); 
+            state.excited=false; 
+        } else { 
+            let rewards = ["金项链","红宝石戒指","古董烟斗","催眠CD"]; 
+            reward = rewards[Math.floor(Math.random()*rewards.length)]; 
+        }
+        addItem(reward);
+        state.sanity += 5;
+        updateUI();
+        addLog(`砰！击退伪人，获得${reward}，San+3`, "combat");
+    }
+    
+    // 暗网交易行 + 物资购买
+    function openDarknetMarket() {
+        let modalDiv = document.createElement("div");
+        modalDiv.className = "modal";
+        modalDiv.innerHTML = `<div class="modal-content" style="width:550px;"><h2>🕸️ 暗网中枢</h2>
+        <div><b>📦 出售物品(点击直接卖出)</b><div id="sellListDark" style="max-height:150px; overflow:auto; margin:5px 0;"></div></div>
+        <div><b>🛒 购买物资 (随机刷新)</b><div id="buyList" style="max-height:150px; overflow:auto; margin:5px 0;"></div></div>
+        <div><b>🎲 价格博弈·拉条砍价</b><p id="haggleDesc">选择物品，拖动比率与奸商博弈</p>
+        <select id="haggleItemSelect"></select><br/>
+        <input type="range" id="priceSlider" min="50" max="200" value="100" step="5" class="slider"/>
+        <span id="sliderVal">期望比率:100%</span><br/>
+        <button id="haggleBtn">💸 发起博弈</button><button id="closeMarketBtn">关闭</button></div></div>`;
+        document.body.appendChild(modalDiv);
+        
+        function refresh() {
+            let sellDiv = modalDiv.querySelector("#sellListDark");
+            let select = modalDiv.querySelector("#haggleItemSelect");
+            sellDiv.innerHTML = ""; select.innerHTML = "";
+            state.inventory.forEach((item, idx) => {
+                let btn = document.createElement("button");
+                btn.innerText = `💰 ${item.name} (${item.value}$)`;
+                btn.style.display="block"; btn.style.margin="4px";
+                btn.onclick = () => { state.money += item.value; addLog(`售出 ${item.name} +${item.value}$`); removeItem(idx); refresh(); updateUI(); };
+                sellDiv.appendChild(btn);
+                let opt = document.createElement("option"); opt.value=idx; opt.innerText=`${item.name} 价值${item.value}$`; select.appendChild(opt);
+            });
+            if(state.inventory.length===0) sellDiv.innerHTML="无物品";
+            
+            let buyDiv = modalDiv.querySelector("#buyList");
+            buyDiv.innerHTML = "";
+            let shopItems = [["安眠药",200],["手枪子弹",100],["性感内衣",1000],["魅惑香水",5000],["兴奋剂",3000],["符箓",25000]];
+            shopItems.forEach(([name,price])=>{
+                let btn = document.createElement("button");
+                btn.innerText = `购买 ${name} (${price}$)`;
+                btn.style.display="block"; btn.style.margin="4px";
+                btn.onclick = () => { if(state.money>=price) { state.money-=price; addItem(name); addLog(`购买 ${name}`); refresh(); updateUI(); } else addLog("金钱不足"); };
+                buyDiv.appendChild(btn);
+            });
+        }
+        refresh();
+        let slider = modalDiv.querySelector("#priceSlider");
+        let span = modalDiv.querySelector("#sliderVal");
+        slider.oninput = () => { span.innerText = `期望比率:${slider.value}%`; };
+        modalDiv.querySelector("#haggleBtn").onclick = () => {
+            let idx = modalDiv.querySelector("#haggleItemSelect").value;
+            if(!state.inventory[idx]) { addLog("无效物品"); return; }
+            let item = state.inventory[idx];
+            let ratio = parseInt(slider.value);
+            let offer = Math.floor(item.value * (ratio/100));
+            let dealerBase = Math.floor(item.value * (60 + Math.random()*100)/100);
+            if(offer <= dealerBase) {
+                addLog(`博弈成功！暗网以${offer}$收购 ${item.name}`, "loot");
+                state.money += offer; removeItem(idx);
+            } else {
+                let penalty = Math.floor(Math.random() * item.value*0.4);
+                state.money = Math.max(0, state.money-penalty);
+                addLog(`博弈失败！奸商欺诈，损失${penalty}$`, "combat");
+            }
+            refresh(); updateUI();
+        };
+        modalDiv.querySelector("#closeMarketBtn").onclick = () => modalDiv.remove();
+    }
+    
+    function openWarehouse() {
+        let modalDiv = document.createElement("div");
+        modalDiv.className = "modal";
+        modalDiv.innerHTML = `<div class="modal-content"><h2>🚌 404公交·安全屋</h2>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;"><button id="storageBtn">📦 收藏室</button><button id="sleepBtn">🛏️ 小憩(San+12)</button><button id="hackBtn">💻 密码破解终端(需穷举器)</button><button id="closeWareBtn">返回</button></div>
+        <div id="wareInfo" style="margin-top:12px;"></div></div>`;
+        document.body.appendChild(modalDiv);
+        document.getElementById("storageBtn").onclick = () => {
+            let high = state.inventory.filter(i=>["金色","红色","黑金色","赤金色"].includes(i.quality));
+            let txt = high.map(i=>`${i.name}(${i.quality})`).join(", ") || "无";
+            document.getElementById("wareInfo").innerHTML = `<b>藏品:</b> ${txt}`;
+        };
+        document.getElementById("sleepBtn").onclick = () => { state.sanity = Math.min(100, state.sanity+12); addLog("小憩恢复12san"); updateUI(); document.getElementById("wareInfo").innerHTML = "神清气爽"; };
+        document.getElementById("hackBtn").onclick = () => {
+            if(state.hackUnlocked) { document.getElementById("wareInfo").innerHTML = `穷举器破译保险箱密码: ${state.safeCode}`; }
+            else { if(state.money>=10000) { state.money-=10000; addItem("穷举器"); addLog("购买穷举器"); updateUI(); document.getElementById("wareInfo").innerHTML = "穷举器已激活"; } else addLog("钱不够10000"); }
+        };
+        document.getElementById("closeWareBtn").onclick = () => modalDiv.remove();
+    }
+    
+    // 绑定全局
+    document.getElementById("warehouseBtn").onclick = () => openWarehouse();
+    document.getElementById("emergencyBtn").onclick = () => handleShoot();
+    document.getElementById("darkwebBtn").onclick = () => openDarknetMarket();
+    
+    function initGame() {
+        initSafeCode();
+        changeScene("livingroom");
+        addItem("旧打火机");
+        addItem("性感内衣");
+        updateUI();
+        addLog("完全版：新增二楼、302房间、阳台，6位保险箱，丰富调情与信任爆物资，暗网可购买物资，兴奋状态增强开枪！");
+    }
+    initGame();
+    setInterval(()=>{ 
+        if(Math.random()<0.15 && state.sanity>0 && state.pleasure>0 && !state.gameWin) 
+            triggerRandomEventExtended(); 
+        if(Math.random()<0.08 && !state.ritualItemCollected && state.sanity>0 && state.pleasure>0)
+            triggerRitualEvent();
+    }, 70000);
+</script>
+</body>
+</html>
